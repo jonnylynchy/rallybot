@@ -1,0 +1,26 @@
+{
+  "name": "rallybot",
+  "version": "1.0.0",
+  "description": "Arduino Bot working off Rally's API",
+  "main": "app.js",
+  "dependencies": {
+    "johnny-five": "^0.8.99"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonnylynchy/rallybot.git"
+  },
+  "keywords": [
+    "Rally"
+  ],
+  "author": "Jon Lynch, Gary Bland, Brandon Blair, Will Nielsen",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonnylynchy/rallybot/issues"
+  },
+  "homepage": "https://github.com/jonnylynchy/rallybot#readme"
+}
