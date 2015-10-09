@@ -22,6 +22,7 @@ var sys = require('sys'),
 	alerts = require('./lib/Alerts.js'),
 	alertComplete = true;
 
+// Initializes the entire app.
 function init() {
 	initBoard();
 	initDbs();
@@ -36,13 +37,18 @@ function init() {
 
 }
 
+// Initializes the Arduino Circuit Board
 function initBoard(){
 	board.on("ready", function() {
+    // Creates flags and lights and assigns them a pin number in
+    // the Arduino Circuit Board
 		flags.make('green', 13);
 		flags.make('red', 12);
 		lights.make('green', 8);
 		lights.make('red', 7);
 
+    // populates the master alerts object with the flags and
+    // lights objects for concerted alerts
 		alerts.init(flags, lights);
 
 		// Add to REPL (optional)
@@ -55,10 +61,12 @@ function initBoard(){
 	});
 }
 
+// Initializes the NEDB Database
 function initDbs(){
 	tasksDb = new nedb({ filename: 'db/tasks.db', autoload: true });
 }
 
+// Map the update states from Rally
 function setUpdateTypes() {
 	updateStates.complete = 'Completed';
 	updateStates.accepted = 'Accepted';
@@ -67,6 +75,7 @@ function setUpdateTypes() {
 	updateStates.unblocked = 'Unblocked';
 }
 
+// Load the config that contains the project and API keys
 function loadConfig() {
 	configFile = 'rallyConfig.json';
 	config = JSON.parse(
@@ -75,6 +84,7 @@ function loadConfig() {
 	//console.log(config);
 }
 
+// Make connection with Rally API
 function connectRally() {
 	restApi = rally({
 		apiKey: config.apiKey, //preferred, required if no user/pass, defaults to process.env.RALLY_API_KEY
@@ -96,6 +106,7 @@ function connectRally() {
 	initialProjectQ = queryUtils.where('StartDate', '<=', today).and('EndDate', '>=', today);
 }
 
+// Load a team's current iteration (e.g., sprint)
 function loadIteration() {
 	// Query rally for iteration info
 	restApi.query({
@@ -131,6 +142,7 @@ function loadIteration() {
 	});
 }
 
+// Request current tasks within specified iteration
 function getTasks(iterationRef, iterationName) {
 	console.log(notificationQueue);
 	restApi.query({
@@ -160,7 +172,9 @@ function getTasks(iterationRef, iterationName) {
 	});
 }
 
-// DB
+// Insert list of tasks into the Database:
+//    - if there are no docs insert the request data
+//    - if there are docs then compare them.
 function insertDoc(doc, db){
 	db.find({ Name: doc.Name, FormattedID: doc.FormattedID }, function(err, docs){
 		if(!docs.length){
@@ -173,12 +187,14 @@ function insertDoc(doc, db){
 	});
 }
 
+// Update the document in the DB
 function updateDoc(doc, db){
 	db.update({ Name: doc.Name }, doc, {}, function(err, count){
 		//console.log('Update: ', count);
 	});
 }
 
+// Evaluate doc for changes
 function compareDoc(doc, db){
 	var differences,
 		newDoc = doc,
@@ -212,6 +228,7 @@ function compareDoc(doc, db){
 	});
 }
 
+// Evaluate whether to insert item into the queue
 function checkDocState(doc, db, changeType){
 	updateDoc(doc, db);
 
@@ -249,6 +266,7 @@ function checkQueue(){
 	}
 }
 
+// activate concerted alert based on color : 'red'|'green'
 function doAlert(notification){
 	var phrase = notification.name + ' was set to ' + notification.state;
 	sayIt(phrase);
@@ -273,6 +291,7 @@ function puts(error, stdout, stderr) {
 	alerts.reset();
 }
 
+// Generate Todays Date
 function getToday(){
 	var today = new Date();
 	var dd = today.getDate();
