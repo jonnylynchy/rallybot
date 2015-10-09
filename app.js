@@ -6,6 +6,7 @@ var board = new five.Board();
 
 var flags = require('./lib/Flags.js');
 var lights = require('./lib/Lights.js');
+var alerts = require('./lib/Alerts.js');
 
 board.on("ready", function() {
 
@@ -14,12 +15,13 @@ board.on("ready", function() {
   lights.make('green', 8);
   lights.make('red', 7);
 
-
+  alerts.init(flags, lights);
 
   // Add to REPL (optional)
   this.repl.inject({
     flags: flags,
-    lights: lights
+    lights: lights,
+    alerts: alerts
   });
 
 });
