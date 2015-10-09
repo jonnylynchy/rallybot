@@ -278,7 +278,7 @@ function doAlert(notification){
 }
 
 function sayIt(phrase){
-	exec("say -v ralph -r 200 " + phrase, resetAlert);
+	exec("say -v zarvox -r 200 " + phrase, resetAlert);
 }
 
 function resetAlert(){
@@ -343,7 +343,7 @@ function playSong(){
 }
 
 // Utils
-function puts(error, stdout, stderr) { 
+function puts(error, stdout, stderr) {
 	console.log(stdout);
 	alerts.reset();
 }
