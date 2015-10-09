@@ -6,7 +6,7 @@ var sys = require('sys'),
 	fs = require('fs'),
 	_ = require("lodash"),
 	five = require("johnny-five"),
-  board = new five.Board(),
+  	board = new five.Board(),
 	config = {},
 	queryUtils = rally.util.query,
 	refUtils = rally.util.ref,
@@ -19,7 +19,8 @@ var sys = require('sys'),
 	pollTime = 4000,
 	flags = require('./lib/Flags.js'),
 	lights = require('./lib/Lights.js'),
-	alerts = require('./lib/Alerts.js');
+	alerts = require('./lib/Alerts.js'),
+	alertComplete = true;
 
 function init() {
 	initBoard();
@@ -42,8 +43,6 @@ function initBoard(){
 		lights.make('green', 8);
 		lights.make('red', 7);
 
-		console.dir(flags);
-		console.dir(lights);
 		alerts.init(flags, lights);
 
 		// Add to REPL (optional)
@@ -112,7 +111,7 @@ function loadIteration() {
 		if(error) {
 			console.log(error);
 		} else {
-			//console.log(result.Results);
+			console.log(result.Results);
 			data = result.Results[0];
 			if(data && data._ref) {
 				var iterationRef = refUtils.getRelative(data._ref);
@@ -140,7 +139,7 @@ function getTasks(iterationRef, iterationName) {
 				.or('State', '=', 'In-Progress')
 				.or('State', '=', 'Completed')
 				.and('Iteration.Name', '=', iterationName),
-		fetch: ['FormattedID', 'Name', 'State', 'Blocked'],
+		fetch: ['FormattedID', 'Name', 'State', 'Blocked', 'BlockedReason'],
 		scope: {
 			project: '/project/' + config.projectid,
 			up: false,
@@ -153,7 +152,8 @@ function getTasks(iterationRef, iterationName) {
 			//console.log(result.Results);
 			var i = 0;
 			while(i < result.Results.length){
-				insertDoc(result.Results[i], tasksDb)
+				//console.log(result.Results[i]);
+				insertDoc(result.Results[i], tasksDb);
 				i++;
 			}
 		};
@@ -162,15 +162,13 @@ function getTasks(iterationRef, iterationName) {
 
 // DB
 function insertDoc(doc, db){
-	db.find({ Name: doc.Name }, function(err, docs){
+	db.find({ Name: doc.Name, FormattedID: doc.FormattedID }, function(err, docs){
 		if(!docs.length){
 			// Insert New
 			db.insert(doc, function (err) {});
-			//console.log('Insert: ', doc);
 		} else {
 			// Update Existing
 			compareDoc(doc, db);
-			//console.log('Comparing doc: ');
 		}
 	});
 }
@@ -187,13 +185,13 @@ function compareDoc(doc, db){
 		originalDoc;
 
 	// console.log(doc);
-	db.find({ Name: doc.Name }, function(err, docs) {
+	db.find({ Name: doc.Name, FormattedID: doc.FormattedID }, function(err, docs) {
 		if(docs.length) {
 			originalDoc = docs[0]
 			differences = diff(originalDoc, newDoc);
 
 			if(differences.length) {
-				//console.log(differences);
+				console.log(differences);
 				var i = 0;
 				var bypass = true;
 				while(i < differences.length){
@@ -201,15 +199,8 @@ function compareDoc(doc, db){
 					// if difference is not id and not _objectVersion, check on other properties, etc.
 					if(differences[i].path.indexOf('_id') === -1 && differences[i].path.indexOf('_objectVersion') === -1) {
 						bypass == false;
-
-						// console.log('other difference:');
-						console.log(differences[i].path[0]);
-						// console.log(differences[i]);
 						checkDocState(doc, db, differences[i].path[0]);
 					}
-					// var path = differences[i].path;
-					// var newValue = differences[i].rhs;
-					// console.log(path + ' has a new value: ' + newValue);
 					i++;
 				}
 
@@ -250,10 +241,11 @@ function checkDocState(doc, db, changeType){
 
 
 // ============ TEMP......
+// TODO: Refactor this crap... pubsub?
 function checkQueue(){
-	if(notificationQueue.length){
+	if(notificationQueue.length && alertComplete){
+		alertComplete = false;
 		doAlert(notificationQueue.shift());
-
 	}
 }
 
@@ -265,17 +257,21 @@ function doAlert(notification){
 }
 
 function sayIt(phrase){
-	exec("say -v ralph -r 200 " + phrase, puts);
+	exec("say -v ralph -r 200 " + phrase, resetAlert);
 }
 
-function puts(error, stdout, stderr) { console.log(stdout) }
+function resetAlert(){
+	alerts.silence();
+	alertComplete = true;
+}
 
 // ============ /TEMP......
 
-
-
 // Utils
-function puts(error, stdout, stderr) { console.log(stdout) }
+function puts(error, stdout, stderr) { 
+	console.log(stdout);
+	alerts.reset();
+}
 
 function getToday(){
 	var today = new Date();
