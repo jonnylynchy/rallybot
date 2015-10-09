@@ -4,7 +4,7 @@ var fs = require('fs');
 var five = require("johnny-five");
 var board = new five.Board();
 
-var flags = require('./lib/FlagAlerts.js');
+var flags = require('./lib/Flags.js');
 var lights = require('./lib/Lights.js');
 
 board.on("ready", function() {
