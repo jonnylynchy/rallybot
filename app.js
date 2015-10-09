@@ -294,10 +294,9 @@ function doStartUpAlert() {
 	flags.raise('green');
 	lights.blink('red');
 	lights.blink('green');
-	var phrase = 'Hello. I am rally bot and I am here to rock you.';
-	sayIt(phrase);
 	playSong();
 }
+
 
 function playSong(){
 	piezo.play({
@@ -337,6 +336,10 @@ function playSong(){
     ],
     tempo: 100
   });
+	setTimeout(function() {
+	    var phrase = 'Hello. I am rally bot and I am here to rock you.';
+		sayIt(phrase);
+	}, 7000);
 }
 
 // Utils
