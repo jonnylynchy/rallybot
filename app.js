@@ -7,6 +7,7 @@ var sys = require('sys'),
 	_ = require("lodash"),
 	five = require("johnny-five"),
   	board = new five.Board(),
+  	piezo,
 	config = {},
 	queryUtils = rally.util.query,
 	refUtils = rally.util.ref,
@@ -46,7 +47,7 @@ function initBoard(){
 		flags.make('red', 12);
 		lights.make('green', 8);
 		lights.make('red', 7);
-
+		piezo = new five.Piezo(3);
     // populates the master alerts object with the flags and
     // lights objects for concerted alerts
 		alerts.init(flags, lights);
@@ -57,6 +58,8 @@ function initBoard(){
 			lights: lights,
 			alerts: alerts
 		});
+
+		doStartUpAlert();
 
 	});
 }
@@ -284,6 +287,57 @@ function resetAlert(){
 }
 
 // ============ /TEMP......
+
+function doStartUpAlert() {
+	alertComplete = false;
+	flags.raise('red');
+	flags.raise('green');
+	lights.blink('red');
+	lights.blink('green');
+	var phrase = 'Hello. I am rally bot and I am here to rock you.';
+	sayIt(phrase);
+	playSong();
+}
+
+function playSong(){
+	piezo.play({
+    // song is composed by an array of pairs of notes and beats
+    // The first argument is the note (null means "no note")
+    // The second argument is the length of time (beat) of the note (or non-note)
+    song: [
+      ["C4", 1],
+      ["F4", 1 / 4],
+      [null, 1 / 4],
+      ["F4", 1 / 4],
+      [null, 1 / 4],
+      ["C4", 1 / 4],
+      [null, 1 / 4],
+      ["C4", 1 / 4],
+      [null, 1 / 4],
+      ["F4", 1 / 4],
+      [null, 1 / 4],
+      ["F4", 1 / 4],
+      ["C4", 1],
+      ["C#4", 2 / 4],
+      ["D4", 1 / 4],
+      [null, 1 / 4],
+      ["D4", 1 / 4],
+      [null, 1 / 4],
+      ["A3", 1 / 4],
+      [null, 1 / 4],
+      ["A3", 1 / 4],
+      [null, 1 / 4],
+      ["D4", 1 / 4],
+      [null, 1 / 4],
+      ["D4", 1 / 4],
+      ["A3", 1 / 2],
+      [null, 1 / 4],
+      ["C4", 2 / 4],
+      ["F4", 1 / 4]
+    ],
+    tempo: 100
+  });
+}
 
 // Utils
 function puts(error, stdout, stderr) { 
