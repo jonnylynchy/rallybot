@@ -4,7 +4,10 @@
   "description": "Arduino Bot working off Rally's API",
   "main": "app.js",
   "dependencies": {
-    "johnny-five": "^0.8.99"
+    "deep-diff": "^0.3.2",
+    "johnny-five": "^0.8.99",
+    "nedb": "^1.2.1",
+    "rally": "^0.2.0"
   },
   "devDependencies": {},
   "scripts": {
