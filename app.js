@@ -268,7 +268,7 @@ function checkQueue(){
 
 // activate concerted alert based on color : 'red'|'green'
 function doAlert(notification){
-	var phrase = notification.name + ' was set to ' + notification.state;
+	var phrase = notification.name.replace('|', '') + ' was set to ' + notification.state;
 	sayIt(phrase);
 
 	alerts.do(notification.flag);
