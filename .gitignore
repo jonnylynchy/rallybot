@@ -1,2 +1,3 @@
 rallyConfig.json
 node_modules/**/*
+db/**/*

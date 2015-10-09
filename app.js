@@ -2,11 +2,12 @@ var sys = require('sys'),
 	exec = require('child_process').exec,
 	nedb = require('nedb'),
 	diff = require('deep-diff').diff,
-	rally = require('rally'), 
+	rally = require('rally'),
 	fs = require('fs'),
 	_ = require("lodash"),
 	five = require("johnny-five"),
-	config = {}, 
+  board = new five.Board(),
+	config = {},
 	queryUtils = rally.util.query,
 	refUtils = rally.util.ref,
 	restApi,
@@ -35,12 +36,10 @@ function init() {
 }
 
 function initBoard(){
-	board = new five.Board();
 	board.on("ready", function() {
-
 		flags.make('green', 13);
-		//flags.make('red', 12);
-		lights.make('green', 8); 
+		flags.make('red', 12);
+		lights.make('green', 8);
 		lights.make('red', 7);
 
 		console.dir(flags);
@@ -86,15 +85,15 @@ function connectRally() {
 			headers: {
 				'X-RallyIntegrationName': 'Rally Nodebot v0.01', //while optional, it is good practice to
 				'X-RallyIntegrationVendor': 'DealerTrack/Cox Automotive', //provide this header information
-				'X-RallyIntegrationVersion': '1.0'                    
+				'X-RallyIntegrationVersion': '1.0'
 			}
-			//any additional request options (proxy options, timeouts, etc.)     
+			//any additional request options (proxy options, timeouts, etc.)
 		}
 	});
 
 	// TODO: update this to be current iteration dates start/end...
-	//today = getToday();
-	today = '2015-09-23';
+	today = getToday();
+	// today = '2015-09-23';
 	initialProjectQ = queryUtils.where('StartDate', '<=', today).and('EndDate', '>=', today);
 }
 
@@ -102,8 +101,8 @@ function loadIteration() {
 	// Query rally for iteration info
 	restApi.query({
 		type: 'iteration',
-		fetch: ['FormattedID', 'Name', 'ScheduleState', 'PlanEstimate', 'Iteration', 'Children'], 
-		query: initialProjectQ, 
+		fetch: ['FormattedID', 'Name', 'ScheduleState', 'PlanEstimate', 'Iteration', 'Children'],
+		query: initialProjectQ,
 		scope: {
 			project: '/project/' + config.projectid,
 			up: false,
@@ -117,7 +116,7 @@ function loadIteration() {
 			data = result.Results[0];
 			if(data && data._ref) {
 				var iterationRef = refUtils.getRelative(data._ref);
-				
+
 				// Get Tasks
 				getTasks(iterationRef, data._refObjectName);
 				refObjectName = data._refObjectName;
@@ -125,7 +124,7 @@ function loadIteration() {
 					//console.log(iterationRef, refObjectName);
 					getTasks(iterationRef, refObjectName);
 				}, pollTime, iterationRef, data._refObjectName);
-				
+
 				// Get Stories
 
 			}
@@ -165,7 +164,7 @@ function getTasks(iterationRef, iterationName) {
 function insertDoc(doc, db){
 	db.find({ Name: doc.Name }, function(err, docs){
 		if(!docs.length){
-			// Insert New 
+			// Insert New
 			db.insert(doc, function (err) {});
 			//console.log('Insert: ', doc);
 		} else {
@@ -192,7 +191,7 @@ function compareDoc(doc, db){
 		if(docs.length) {
 			originalDoc = docs[0]
 			differences = diff(originalDoc, newDoc);
-			
+
 			if(differences.length) {
 				//console.log(differences);
 				var i = 0;
@@ -224,7 +223,7 @@ function compareDoc(doc, db){
 
 function checkDocState(doc, db, changeType){
 	updateDoc(doc, db);
-	
+
 	//On diff if diffed item matches one of updateStates, check state and add to queue
 	if(changeType === updateStates.blocked && doc.Blocked == true){
 		notificationQueue.push({name: doc.Name, state: updateStates.blocked, flag: 'red'});
@@ -232,7 +231,7 @@ function checkDocState(doc, db, changeType){
 		notificationQueue.push({name: doc.Name, state: updateStates.unblocked, flag: 'green'});
 	} else {
 		switch (doc.State) {
-			case updateStates.complete: 
+			case updateStates.complete:
 				notificationQueue.push({name: doc.Name, state: doc.State, flag: 'green'});
 				break;
 			case updateStates.accepted:
@@ -286,11 +285,11 @@ function getToday(){
 
 	if(dd<10) {
 	    dd='0'+dd
-	} 
+	}
 
 	if(mm<10) {
 	    mm='0'+mm
-	} 
+	}
 
 	today = yyyy + '-' + mm + '-' + dd;
 	return today;
