@@ -7,7 +7,9 @@
     "deep-diff": "^0.3.2",
     "johnny-five": "^0.8.99",
     "nedb": "^1.2.1",
-    "rally": "^0.2.0"
+    "rally": "^0.2.0",
+    "bluebird": "^2.10.2",
+    "lodash": "^3.10.1"
   },
   "devDependencies": {},
   "scripts": {

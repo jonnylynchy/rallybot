@@ -4,6 +4,8 @@ var sys = require('sys'),
 	diff = require('deep-diff').diff,
 	rally = require('rally'), 
 	fs = require('fs'),
+	_ = require("lodash"),
+	five = require("johnny-five"),
 	config = {}, 
 	queryUtils = rally.util.query,
 	refUtils = rally.util.ref,
@@ -13,14 +15,46 @@ var sys = require('sys'),
 	notificationQueue = [],
 	tasksDb,
 	today,
-	pollTime = 4000;
+	pollTime = 4000,
+	flags = require('./lib/Flags.js'),
+	lights = require('./lib/Lights.js'),
+	alerts = require('./lib/Alerts.js');
 
 function init() {
+	initBoard();
 	initDbs();
 	setUpdateTypes();
 	loadConfig();
 	connectRally();
 	loadIteration();
+
+	var interval = setInterval(function() {
+		checkQueue();
+	}, pollTime);
+
+}
+
+function initBoard(){
+	board = new five.Board();
+	board.on("ready", function() {
+
+		flags.make('green', 13);
+		//flags.make('red', 12);
+		lights.make('green', 8); 
+		lights.make('red', 7);
+
+		console.dir(flags);
+		console.dir(lights);
+		alerts.init(flags, lights);
+
+		// Add to REPL (optional)
+		this.repl.inject({
+			flags: flags,
+			lights: lights,
+			alerts: alerts
+		});
+
+	});
 }
 
 function initDbs(){
@@ -213,6 +247,33 @@ function checkDocState(doc, db, changeType){
 		}
 	}
 }
+
+
+
+// ============ TEMP......
+function checkQueue(){
+	if(notificationQueue.length){
+		doAlert(notificationQueue.shift());
+
+	}
+}
+
+function doAlert(notification){
+	var phrase = notification.name + ' was set to ' + notification.state;
+	sayIt(phrase);
+
+	alerts.do(notification.flag);
+}
+
+function sayIt(phrase){
+	exec("say -v ralph -r 200 " + phrase, puts);
+}
+
+function puts(error, stdout, stderr) { console.log(stdout) }
+
+// ============ /TEMP......
+
+
 
 // Utils
 function puts(error, stdout, stderr) { console.log(stdout) }
