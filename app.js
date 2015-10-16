@@ -332,7 +332,7 @@ function doAlert(notification){
 }
 
 function sayIt(phrase){
-	exec("say -v zarvox -r 200 " + phrase, resetAlert);
+	exec("espeak " + phrase, resetAlert);
 }
 
 function resetAlert(){
