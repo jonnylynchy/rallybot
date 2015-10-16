@@ -14,8 +14,11 @@ var sys = require('sys'),
 	restApi,
 	initialProjectQ,
 	updateStates = {},
+	updateStateText = {},
+	storyUpdateStates = {},
 	notificationQueue = [],
 	tasksDb,
+	storiesDb,
 	today,
 	pollTime = 4000,
 	flags = require('./lib/Flags.js'),
@@ -67,6 +70,7 @@ function initBoard(){
 // Initializes the NEDB Database
 function initDbs(){
 	tasksDb = new nedb({ filename: 'db/tasks.db', autoload: true });
+	storiesDb = new nedb({ filename: 'db/stories.db', autoload: true });
 }
 
 // Map the update states from Rally
@@ -76,6 +80,15 @@ function setUpdateTypes() {
 	updateStates.inprogress = 'In-Progress';
 	updateStates.blocked = 'Blocked';
 	updateStates.unblocked = 'Unblocked';
+
+	storyUpdateStates.complete = 'COMPLETED';
+	storyUpdateStates.accepted = 'ACCEPTED';
+	storyUpdateStates.inprogress = 'IN_PROGRESS';
+
+	updateStateText.inprogress = 'in progress';
+	updateStateText.complete = 'completed';
+	updateStateText.accepted = 'accepted';
+
 }
 
 // Load the config that contains the project and API keys
@@ -84,7 +97,6 @@ function loadConfig() {
 	config = JSON.parse(
 		fs.readFileSync(configFile)
 	);
-	//console.log(config);
 }
 
 // Make connection with Rally API
@@ -105,7 +117,6 @@ function connectRally() {
 
 	// TODO: update this to be current iteration dates start/end...
 	today = getToday();
-	// today = '2015-09-23';
 	initialProjectQ = queryUtils.where('StartDate', '<=', today).and('EndDate', '>=', today);
 }
 
@@ -125,21 +136,22 @@ function loadIteration() {
 		if(error) {
 			console.log(error);
 		} else {
-			console.log(result.Results);
 			data = result.Results[0];
 			if(data && data._ref) {
 				var iterationRef = refUtils.getRelative(data._ref);
-
+				var refObjectName = data._refObjectName;
 				// Get Tasks
-				getTasks(iterationRef, data._refObjectName);
-				refObjectName = data._refObjectName;
+				getTasks(iterationRef, refObjectName);
+				
 				var interval = setInterval(function(iterationRef, refObjectName) {
-					//console.log(iterationRef, refObjectName);
-					getTasks(iterationRef, refObjectName);
-				}, pollTime, iterationRef, data._refObjectName);
+						getTasks(iterationRef, refObjectName);
+					}, pollTime, iterationRef, refObjectName);
 
 				// Get Stories
-
+				getStories(iterationRef, refObjectName);
+				var storyInterval = setInterval(function(iterationRef, refObjectName) {
+						getStories(iterationRef, refObjectName);
+					}, pollTime, iterationRef, refObjectName);
 			}
 		}
 	});
@@ -164,11 +176,38 @@ function getTasks(iterationRef, iterationName) {
 		if(error) {
 			console.log(error);
 		} else {
-			//console.log(result.Results);
 			var i = 0;
 			while(i < result.Results.length){
-				//console.log(result.Results[i]);
 				insertDoc(result.Results[i], tasksDb);
+				i++;
+			}
+		};
+	});
+}
+
+// Request current stories within specified iteration
+function getStories(iterationRef, iterationName) {
+	console.log(notificationQueue);
+	restApi.query({
+		type: 'HierarchicalRequirement',
+		query: queryUtils.where('TaskStatus', '=', 'DEFINED')
+				.or('TaskStatus', '=', 'IN_PROGRESS')
+				.or('TaskStatus', '=', 'COMPLETED')
+				.or('TaskStatus', '=', 'NONE')
+				.and('Iteration.Name', '=', iterationName),
+		fetch: ['Name', 'Blocked', 'BlockedReason', 'TaskStatus'],
+		scope: {
+			project: '/project/' + config.projectid,
+			up: false,
+			down: true
+		},
+	}, function(error, result) {
+		if(error) {
+			console.log(error);
+		} else {
+			var i = 0;
+			while(i < result.Results.length){
+				insertDoc(result.Results[i], storiesDb);
 				i++;
 			}
 		};
@@ -179,7 +218,7 @@ function getTasks(iterationRef, iterationName) {
 //    - if there are no docs insert the request data
 //    - if there are docs then compare them.
 function insertDoc(doc, db){
-	db.find({ Name: doc.Name, FormattedID: doc.FormattedID }, function(err, docs){
+	db.find({ _refObjectUUID: doc._refObjectUUID }, function(err, docs){
 		if(!docs.length){
 			// Insert New
 			db.insert(doc, function (err) {});
@@ -192,7 +231,7 @@ function insertDoc(doc, db){
 
 // Update the document in the DB
 function updateDoc(doc, db){
-	db.update({ Name: doc.Name }, doc, {}, function(err, count){
+	db.update({ _refObjectUUID: doc._refObjectUUID }, doc, {}, function(err, count){
 		//console.log('Update: ', count);
 	});
 }
@@ -203,8 +242,8 @@ function compareDoc(doc, db){
 		newDoc = doc,
 		originalDoc;
 
-	// console.log(doc);
-	db.find({ Name: doc.Name, FormattedID: doc.FormattedID }, function(err, docs) {
+
+	db.find({ _refObjectUUID: doc._refObjectUUID }, function(err, docs) {
 		if(docs.length) {
 			originalDoc = docs[0]
 			differences = diff(originalDoc, newDoc);
@@ -217,15 +256,10 @@ function compareDoc(doc, db){
 					// DB has id, rally api collection doesn't
 					// if difference is not id and not _objectVersion, check on other properties, etc.
 					if(differences[i].path.indexOf('_id') === -1 && differences[i].path.indexOf('_objectVersion') === -1) {
-						bypass == false;
 						checkDocState(doc, db, differences[i].path[0]);
 					}
 					i++;
 				}
-
-				// for testing...
-				// if(bypass)
-				// 	console.log('no change');
 			}
 		}
 	});
@@ -233,7 +267,11 @@ function compareDoc(doc, db){
 
 // Evaluate whether to insert item into the queue
 function checkDocState(doc, db, changeType){
+	var docType = 'Task';
 	updateDoc(doc, db);
+
+	if(doc._type === 'HierarchicalRequirement')
+		docType = 'Story';
 
 	//On diff if diffed item matches one of updateStates, check state and add to queue
 	if(changeType === updateStates.blocked && doc.Blocked == true){
@@ -241,24 +279,40 @@ function checkDocState(doc, db, changeType){
 	} else if(changeType === updateStates.blocked && doc.Blocked == false){
 		notificationQueue.push({name: doc.Name, state: updateStates.unblocked, flag: 'green'});
 	} else {
-		switch (doc.State) {
-			case updateStates.complete:
-				notificationQueue.push({name: doc.Name, state: doc.State, flag: 'green'});
-				break;
-			case updateStates.accepted:
-				notificationQueue.push({name: doc.Name, state: doc.State, flag: 'green'});
-				break;
-			case updateStates.inprogress:
-				notificationQueue.push({name: doc.Name, state: doc.State, flag: 'green'});
-				break;
-			default:
-				// this isn't an update we care about...
-				break;
+		if(doc._type === 'HierarchicalRequirement'){
+			switch (doc.TaskStatus) {
+				case storyUpdateStates.complete:
+					notificationQueue.push({type: docType, name: doc.Name, state: updateStateText.complete, flag: 'green'});
+					break;
+				case storyUpdateStates.accepted:
+					notificationQueue.push({type: docType, name: doc.Name, state: updateStateText.accepted, flag: 'green'});
+					break;
+				case storyUpdateStates.inprogress:
+					notificationQueue.push({type: docType, name: doc.Name, state: updateStateText.inprogress, flag: 'green'});
+					break;
+				default:
+					// this isn't an update we care about...
+					break;
+			}
+		} else {
+			switch (doc.State) {
+				case updateStates.complete:
+					notificationQueue.push({type: docType, name: doc.Name, state: doc.State, flag: 'green'});
+					break;
+				case updateStates.accepted:
+					notificationQueue.push({type: docType, name: doc.Name, state: doc.State, flag: 'green'});
+					break;
+				case updateStates.inprogress:
+					notificationQueue.push({type: docType, name: doc.Name, state: doc.State, flag: 'green'});
+					break;
+				default:
+					// this isn't an update we care about...
+					break;
+			}
 		}
+		
 	}
 }
-
-
 
 // ============ TEMP......
 // TODO: Refactor this crap... pubsub?
@@ -271,7 +325,7 @@ function checkQueue(){
 
 // activate concerted alert based on color : 'red'|'green'
 function doAlert(notification){
-	var phrase = notification.name.replace('|', '') + ' was set to ' + notification.state;
+	var phrase = notification.type + ' ' + notification.name.replace('|', '') + ' was set to ' + notification.state;
 	sayIt(phrase);
 
 	alerts.do(notification.flag);
