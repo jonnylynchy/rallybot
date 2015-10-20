@@ -328,11 +328,14 @@ function doAlert(notification){
 	var phrase = notification.type + ' ' + notification.name.replace('|', '') + ' was set to ' + notification.state;
 	sayIt(phrase);
 
-	alerts.do(notification.flag);
+	//alerts.do(notification.flag);
+	flags.raise(notification.flag);
+	lights.blink(notification.flag);
 }
 
 function sayIt(phrase){
-	exec("espeak " + phrase, resetAlert);
+	//exec("espeak " + phrase, resetAlert);
+	exec("say " + phrase, resetAlert);
 }
 
 function resetAlert(){
