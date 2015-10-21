@@ -6,7 +6,7 @@ var sys = require('sys'),
 	fs = require('fs'),
 	_ = require("lodash"),
 	five = require("johnny-five"),
-  	board = new five.Board(),
+  	board,
   	piezo,
 	config = {},
 	queryUtils = rally.util.query,
@@ -24,10 +24,19 @@ var sys = require('sys'),
 	flags = require('./lib/Flags.js'),
 	lights = require('./lib/Lights.js'),
 	alerts = require('./lib/Alerts.js'),
-	alertComplete = true;
+	songs = require('./lib/Songs.js'),
+	alertComplete = true,
+	withBoard = true;
 
 // Initializes the entire app.
 function init() {
+
+	process.argv.forEach(function(val, index, array) {
+		if(val === 'noboard')
+			withBoard = false;
+	});
+
+	songs.init();
 	initBoard();
 	initDbs();
 	setUpdateTypes();
@@ -43,28 +52,32 @@ function init() {
 
 // Initializes the Arduino Circuit Board
 function initBoard(){
-	board.on("ready", function() {
-    // Creates flags and lights and assigns them a pin number in
-    // the Arduino Circuit Board
-		flags.make('green', 13);
-		flags.make('red', 12);
-		lights.make('green', 8);
-		lights.make('red', 7);
-		piezo = new five.Piezo(3);
-    // populates the master alerts object with the flags and
-    // lights objects for concerted alerts
-		alerts.init(flags, lights);
+	if(withBoard){
+		console.log('init board');
+		board = new five.Board();
+		board.on("ready", function() {
+		    // Creates flags and lights and assigns them a pin number in
+		    // the Arduino Circuit Board
+			flags.make('green', 13);
+			flags.make('red', 12);
+			lights.make('green', 8);
+			lights.make('red', 7);
+			piezo = new five.Piezo(3);
+		    // populates the master alerts object with the flags and
+		    // lights objects for concerted alerts
+			alerts.init(flags, lights);
 
-		// Add to REPL (optional)
-		this.repl.inject({
-			flags: flags,
-			lights: lights,
-			alerts: alerts
+			// Add to REPL (optional)
+			this.repl.inject({
+				flags: flags,
+				lights: lights,
+				alerts: alerts
+			});
+
+			doStartUpAlert();
+
 		});
-
-		doStartUpAlert();
-
-	});
+	}
 }
 
 // Initializes the NEDB Database
@@ -115,7 +128,6 @@ function connectRally() {
 		}
 	});
 
-	// TODO: update this to be current iteration dates start/end...
 	today = getToday();
 	initialProjectQ = queryUtils.where('StartDate', '<=', today).and('EndDate', '>=', today);
 }
@@ -328,75 +340,52 @@ function doAlert(notification){
 	var phrase = notification.type + ' ' + notification.name.replace('|', '') + ' was set to ' + notification.state;
 	sayIt(phrase);
 
-	//alerts.do(notification.flag);
-	flags.raise(notification.flag);
-	lights.blink(notification.flag);
+	if(withBoard)
+		alerts.do(notification.flag);
 }
 
 function sayIt(phrase){
-	//exec("espeak " + phrase, resetAlert);
-	exec("say " + phrase, resetAlert);
+	if(process.platform.indexOf('linux') > -1) {
+		exec("espeak " + phrase, resetAlert);
+	} else {
+		exec("say " + phrase, resetAlert);
+	}
 }
 
 function resetAlert(){
-	alerts.silence();
+	if(withBoard)
+		alerts.silence();
 	alertComplete = true;
 }
 
 // ============ /TEMP......
 
 function doStartUpAlert() {
-	alertComplete = false;
-	flags.raise('red');
-	flags.raise('green');
-	lights.blink('red');
-	lights.blink('green');
-	playSong();
+	var startupSong = songs.getRandomSong('startupSongs');
+
+	if(withBoard) {
+		alertComplete = false;
+		flags.raise('red');
+		flags.raise('green');
+		lights.blink('red');
+		lights.blink('green');
+		playSong(startupSong);
+	}
 }
 
-
-function playSong(){
+function playSong(song){
 	piezo.play({
-    // song is composed by an array of pairs of notes and beats
-    // The first argument is the note (null means "no note")
-    // The second argument is the length of time (beat) of the note (or non-note)
-    song: [
-      ["C4", 1],
-      ["F4", 1 / 4],
-      [null, 1 / 4],
-      ["F4", 1 / 4],
-      [null, 1 / 4],
-      ["C4", 1 / 4],
-      [null, 1 / 4],
-      ["C4", 1 / 4],
-      [null, 1 / 4],
-      ["F4", 1 / 4],
-      [null, 1 / 4],
-      ["F4", 1 / 4],
-      ["C4", 1],
-      ["C#4", 2 / 4],
-      ["D4", 1 / 4],
-      [null, 1 / 4],
-      ["D4", 1 / 4],
-      [null, 1 / 4],
-      ["A3", 1 / 4],
-      [null, 1 / 4],
-      ["A3", 1 / 4],
-      [null, 1 / 4],
-      ["D4", 1 / 4],
-      [null, 1 / 4],
-      ["D4", 1 / 4],
-      ["A3", 1 / 2],
-      [null, 1 / 4],
-      ["C4", 2 / 4],
-      ["F4", 1 / 4]
-    ],
-    tempo: 100
-  });
+    	song: song,
+    	tempo: 100
+  	});
 	setTimeout(function() {
-	    var phrase = 'Hello. I am rally bot and I am here to rock you.';
-		sayIt(phrase);
+	    sayStartupPhrase();
 	}, 7000);
+}
+
+function sayStartupPhrase(){
+	var phrase = 'Hello. I am rally bot and I am here to rock you.';
+	sayIt(phrase);
 }
 
 // Utils
