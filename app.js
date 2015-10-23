@@ -25,6 +25,7 @@ var sys = require('sys'),
 	lights = require('./lib/Lights.js'),
 	alerts = require('./lib/Alerts.js'),
 	songs = require('./lib/Songs.js'),
+	hipchatclient = require('./lib/HipChatClient.js'),
 	alertComplete = true,
 	withBoard = true;
 
@@ -42,6 +43,7 @@ function init() {
 	setUpdateTypes();
 	loadConfig();
 	connectRally();
+	connectHipChat();
 	loadIteration();
 
 	var interval = setInterval(function() {
@@ -106,7 +108,7 @@ function setUpdateTypes() {
 
 // Load the config that contains the project and API keys
 function loadConfig() {
-	configFile = 'rallyConfig.json';
+	configFile = 'apiConfigs.json';
 	config = JSON.parse(
 		fs.readFileSync(configFile)
 	);
@@ -115,7 +117,7 @@ function loadConfig() {
 // Make connection with Rally API
 function connectRally() {
 	restApi = rally({
-		apiKey: config.apiKey, //preferred, required if no user/pass, defaults to process.env.RALLY_API_KEY
+		apiKey: config.rally.apiKey, //preferred, required if no user/pass, defaults to process.env.RALLY_API_KEY
 		apiVersion: 'v2.0', //this is the default and may be omitted
 		server: 'https://rally1.rallydev.com', //this is the default and may be omitted
 		requestOptions: {
@@ -132,6 +134,10 @@ function connectRally() {
 	initialProjectQ = queryUtils.where('StartDate', '<=', today).and('EndDate', '>=', today);
 }
 
+function connectHipChat() {
+	hipchatclient.init(config.hipchat.apiKey, config.hipchat.roomId);
+}
+
 // Load a team's current iteration (e.g., sprint)
 function loadIteration() {
 	// Query rally for iteration info
@@ -140,7 +146,7 @@ function loadIteration() {
 		fetch: ['FormattedID', 'Name', 'ScheduleState', 'PlanEstimate', 'Iteration', 'Children'],
 		query: initialProjectQ,
 		scope: {
-			project: '/project/' + config.projectid,
+			project: '/project/' + config.rally.projectid,
 			up: false,
 			down: true
 		},
@@ -180,7 +186,7 @@ function getTasks(iterationRef, iterationName) {
 				.and('Iteration.Name', '=', iterationName),
 		fetch: ['FormattedID', 'Name', 'State', 'Blocked', 'BlockedReason'],
 		scope: {
-			project: '/project/' + config.projectid,
+			project: '/project/' + config.rally.projectid,
 			up: false,
 			down: true
 		},
@@ -209,7 +215,7 @@ function getStories(iterationRef, iterationName) {
 				.and('Iteration.Name', '=', iterationName),
 		fetch: ['Name', 'Blocked', 'BlockedReason', 'TaskStatus'],
 		scope: {
-			project: '/project/' + config.projectid,
+			project: '/project/' + config.rally.projectid,
 			up: false,
 			down: true
 		},
@@ -286,9 +292,9 @@ function checkDocState(doc, db, changeType){
 		docType = 'Story';
 
 	//On diff if diffed item matches one of updateStates, check state and add to queue
-	if(changeType === updateStates.blocked && doc.Blocked == true){
+	if(changeType === updateStates.blocked && doc.Blocked === true){
 		notificationQueue.push({name: doc.Name, state: updateStates.blocked, flag: 'red'});
-	} else if(changeType === updateStates.blocked && doc.Blocked == false){
+	} else if(changeType === updateStates.blocked && doc.Blocked === false){
 		notificationQueue.push({name: doc.Name, state: updateStates.unblocked, flag: 'green'});
 	} else {
 		if(doc._type === 'HierarchicalRequirement'){
@@ -338,8 +344,14 @@ function checkQueue(){
 // activate concerted alert based on color : 'red'|'green'
 function doAlert(notification){
 	var phrase = notification.type + ' ' + notification.name.replace('|', '') + ' was set to ' + notification.state;
+	
+	// Say Phrase
 	sayIt(phrase);
-
+	
+	// Notify team in hipchat
+	hipchatclient.postMessage(phrase, notification.flag);
+	
+	// Make physical bot do stuff
 	if(withBoard)
 		alerts.do(notification.flag);
 }

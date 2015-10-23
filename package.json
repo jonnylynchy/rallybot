@@ -4,12 +4,13 @@
   "description": "Arduino Bot working off Rally's API",
   "main": "app.js",
   "dependencies": {
+    "bluebird": "^2.10.2",
     "deep-diff": "^0.3.2",
     "johnny-five": "^0.8.99",
+    "lodash": "^3.10.1",
     "nedb": "^1.2.1",
-    "rally": "^0.2.0",
-    "bluebird": "^2.10.2",
-    "lodash": "^3.10.1"
+    "node-hipchat": "^0.4.5",
+    "rally": "^0.2.0"
   },
   "devDependencies": {},
   "scripts": {
